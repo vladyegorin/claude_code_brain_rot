@@ -9,6 +9,7 @@ Hook commands:
     python brain_rot.py start    # UserPromptSubmit — start timing, ensure daemon
     python brain_rot.py done     # Stop            — kill video (drops done.flag)
     python brain_rot.py alert    # Notification    — kill video + beep (alert.flag)
+    python brain_rot.py notify   # Notification hook — kill+beep only if user attention needed
     python brain_rot.py daemon   # internal — the long-running reactor
 """
 
@@ -105,6 +106,28 @@ def pick_random_video(video_folder):
     except Exception:
         return None
     return random.choice(files) if files else None
+
+def pick_videos_for_corners(video_folder, n):
+    """Return a list of n video paths — distinct if possible, random repeats otherwise."""
+    if not os.path.isabs(video_folder):
+        video_folder = os.path.join(SCRIPT_DIR, video_folder)
+    try:
+        files = [os.path.join(video_folder, f)
+                 for f in os.listdir(video_folder)
+                 if f.lower().endswith(".mp4")]
+    except Exception:
+        files = []
+    if not files:
+        return [None] * n
+    if len(files) >= n:
+        return random.sample(files, n)
+    # fewer videos than corners — cycle a shuffled list so every video is used and
+    # we never end up showing the same clip in all corners (guaranteed variety).
+    shuffled = files[:]
+    random.shuffle(shuffled)
+    result = [shuffled[i % len(shuffled)] for i in range(n)]
+    random.shuffle(result)
+    return result
 
 def geometry_flag(corner, w, h, p):
     return {
@@ -237,16 +260,17 @@ class Daemon:
                   "macOS: brew install mpv\nLinux: sudo apt install mpv\n")
             return
         cfg = read_config()
-        video = pick_random_video(cfg.get("video_folder", "videos"))
-        if not video:
-            return
         w = cfg.get("video_width", 320)
         h = cfg.get("video_height", 180)
         p = cfg.get("corner_padding", 10)
         severity = cfg.get("severity", "medium")
-        corners = (["bottom-right", "bottom-left", "top-right", "top-left"]
+        # bottom-left dropped: overlaps the terminal input field
+        corners = (["bottom-right", "top-right", "top-left"]
                    if severity == "max" else ["bottom-right"])
-        for corner in corners:
+        videos = pick_videos_for_corners(cfg.get("video_folder", "videos"), len(corners))
+        for corner, video in zip(corners, videos):
+            if not video:
+                continue
             proc = spawn_mpv(self.mpv_bin, video, geometry_flag(corner, w, h, p))
             if proc:
                 self.procs.append(proc)
@@ -260,7 +284,14 @@ class Daemon:
             self.launch_at = None
             self.kill_video()
             return
-        self.kill_video()          # clear any leftover from prior turn
+        # prune dead handles before deciding whether a video is live
+        self.procs = [p for p in self.procs if p.poll() is None]
+        if self.procs:
+            # video already playing — re-arm is a no-op (no flicker)
+            return
+        if self.launch_at is not None:
+            # launch already scheduled — don't reschedule
+            return
         self.launch_at = time.time() + delay
 
     def loop(self):
@@ -299,15 +330,18 @@ class Daemon:
                     if self.launch_at else "DAEMON-think (off, no launch)")
                 self.last_active = now
 
-            # scheduled video launch
+            # drop dead handles before checking for live video
+            self.procs = [p for p in self.procs if p.poll() is None]
+
+            # scheduled video launch — only if no video is already alive
             if self.launch_at is not None and now >= self.launch_at:
                 self.launch_at = None
-                self.launch_video()
-                log(f"DAEMON-launch (video shown, procs={len(self.procs)})")
-                self.last_active = now
-
-            # drop dead handles from the list
-            self.procs = [p for p in self.procs if p.poll() is None]
+                if not self.procs:
+                    self.launch_video()
+                    log(f"DAEMON-launch (video shown, procs={len(self.procs)})")
+                    self.last_active = now
+                else:
+                    log("DAEMON-launch skipped (video already live)")
 
             # self-exit if idle a long time
             if now - self.last_active > DAEMON_IDLE_TTL and not self.procs:
@@ -365,6 +399,54 @@ def cmd_done():
 def cmd_alert():
     touch(ALERT_FLAG)
 
+# Notification event JSON shape is uncertain until verified against a live payload.
+# The raw stdin is logged to events.log on first invocation so the exact fields can
+# be confirmed.  Fields inspected here are based on Claude Code hook documentation
+# and are best-effort until a real payload is observed.
+_notify_logged = False
+
+def cmd_notify():
+    global _notify_logged
+    raw = sys.stdin.read()
+
+    # Always log the first payload so we can verify the JSON shape.
+    if not _notify_logged:
+        log(f"NOTIFY-raw {raw!r}")
+        _notify_logged = True
+
+    if not raw.strip():
+        # Empty stdin — default to alerting (better to nudge than miss a prompt).
+        log("NOTIFY-empty-stdin -> alert")
+        cmd_alert()
+        return
+
+    try:
+        data = json.loads(raw)
+    except Exception:
+        log("NOTIFY-parse-error -> alert")
+        cmd_alert()
+        return
+
+    # Inspect likely fields.  Shape TBD — verify against events.log after first run.
+    # Candidates: data["message"], data["notification_type"], data["hook_event_name"]
+    message   = str(data.get("message", "")).lower()
+    notif_type = str(data.get("notification_type", "")).lower()
+    hook_name  = str(data.get("hook_event_name", "")).lower()
+    combined   = " ".join([message, notif_type, hook_name])
+
+    # Only a permission prompt is a true "must act now" signal. The Stop hook
+    # already beeps the moment Claude finishes, so the idle_prompt notification
+    # (fired 60s after Stop, "Claude is waiting for your input") would just
+    # double-beep with nothing to act on — ignore everything except permission.
+    attention = "permission" in combined
+
+    if not attention:
+        log(f"NOTIFY-ignored (not a permission prompt: {combined!r})")
+        return
+
+    log(f"NOTIFY-alert (combined={combined!r})")
+    cmd_alert()
+
 def cmd_daemon():
     # Guard against duplicate daemons racing in.
     Daemon().loop()
@@ -380,6 +462,7 @@ def main():
     if   cmd == "start":  cmd_start()
     elif cmd == "done":   cmd_done()
     elif cmd == "alert":  cmd_alert()
+    elif cmd == "notify": cmd_notify()
     elif cmd == "daemon": cmd_daemon()
 
 if __name__ == "__main__":

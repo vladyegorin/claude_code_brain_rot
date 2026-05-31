@@ -7,17 +7,17 @@
         ]
       }
     ],
-    "PreToolUse": [
-      {
-        "hooks": [
-          { "type": "command", "command": "\"E:\\Desktop\\pet_projects\\claude_code_brain_rot\\scripts\\notify.bat\"" }
-        ]
-      }
-    ],
     "PostToolUse": [
       {
         "hooks": [
           { "type": "command", "command": "\"E:\\Desktop\\pet_projects\\claude_code_brain_rot\\scripts\\think.bat\"" }
+        ]
+      }
+    ],
+    "Notification": [
+      {
+        "hooks": [
+          { "type": "command", "command": "python \"E:\\Desktop\\pet_projects\\claude_code_brain_rot\\brain_rot.py\" notify" }
         ]
       }
     ],
