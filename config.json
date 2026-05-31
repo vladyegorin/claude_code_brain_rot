@@ -1,0 +1,9 @@
+{
+  "severity": "max",
+  "video_folder": "videos",
+  "urls": [],
+  "video_width": 320,
+  "video_height": 180,
+  "corner_padding": 10,
+  "alert_sound": "sounds/alarm.mp3"
+}
