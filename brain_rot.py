@@ -160,6 +160,8 @@ def spawn_mpv(mpv_bin, video_path, geometry):
     cmd = [
         mpv_bin,
         "--no-terminal", "--really-quiet",
+        "--mute=yes",                   # videos play silently
+        "--no-audio",                   # don't even open an audio output
         "--no-border",
         "--loop-file=inf",
         "--ontop",                      # stays visible on top (works even when
