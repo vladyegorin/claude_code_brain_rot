@@ -7,8 +7,7 @@ process startup, no taskkill scan, no PowerShell launch).
 
 Hook commands:
     python brain_rot.py start    # UserPromptSubmit — start timing, ensure daemon
-    python brain_rot.py done     # Stop            — kill video (drops done.flag)
-    python brain_rot.py alert    # Notification    — kill video + beep (alert.flag)
+    python brain_rot.py alert    # kill video + beep (drops alert.flag)
     python brain_rot.py notify   # Notification hook — kill+beep only if user attention needed
     python brain_rot.py daemon   # internal — the long-running reactor
 """
@@ -16,7 +15,6 @@ Hook commands:
 import json
 import os
 import random
-import signal
 import subprocess
 import sys
 import time
@@ -30,7 +28,6 @@ CONFIG_PATH = os.path.join(SCRIPT_DIR, "config.json")
 
 STATE_DIR   = os.path.join(os.path.expanduser("~"), ".brainrot")
 THINK_FLAG  = os.path.join(STATE_DIR, "think.flag")
-DONE_FLAG   = os.path.join(STATE_DIR, "done.flag")
 ALERT_FLAG  = os.path.join(STATE_DIR, "alert.flag")
 ALIVE_FILE  = os.path.join(STATE_DIR, "daemon.alive")
 MPV_MISSING = os.path.join(STATE_DIR, "mpv_missing.txt")
@@ -96,17 +93,6 @@ def read_config():
 # Video helpers
 # ---------------------------------------------------------------------------
 
-def pick_random_video(video_folder):
-    if not os.path.isabs(video_folder):
-        video_folder = os.path.join(SCRIPT_DIR, video_folder)
-    try:
-        files = [os.path.join(video_folder, f)
-                 for f in os.listdir(video_folder)
-                 if f.lower().endswith(".mp4")]
-    except Exception:
-        return None
-    return random.choice(files) if files else None
-
 def pick_videos_for_corners(video_folder, n):
     """Return a list of n video paths — distinct if possible, random repeats otherwise."""
     if not os.path.isabs(video_folder):
@@ -163,6 +149,7 @@ def spawn_mpv(mpv_bin, video_path, geometry):
         "--mute=yes",                   # videos play silently
         "--no-audio",                   # don't even open an audio output
         "--no-border",
+        f"--start={random.randint(5, 85)}%",  # jump in at a random spot, not the start
         "--loop-file=inf",
         "--ontop",                      # stays visible on top (works even when
                                         # launched by the background daemon)
@@ -179,36 +166,6 @@ def spawn_mpv(mpv_bin, video_path, geometry):
         return subprocess.Popen(cmd, **kwargs)
     except Exception:
         return None
-
-# ---------------------------------------------------------------------------
-# Win32 overlay — make mpv topmost + non-activatable so it never steals focus
-# ---------------------------------------------------------------------------
-
-def set_overlay(pid):
-    if not IS_WINDOWS:
-        return
-    try:
-        import ctypes
-        from ctypes import wintypes
-        user32 = ctypes.windll.user32
-        GWL_EXSTYLE, WS_EX_TOPMOST, WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW = -20, 0x8, 0x08000000, 0x80
-        HWND_TOPMOST, SWP_NOMOVE, SWP_NOSIZE, SWP_NOACTIVATE = -1, 0x2, 0x1, 0x10
-
-        def _cb(hwnd, _):
-            buf = wintypes.DWORD()
-            user32.GetWindowThreadProcessId(hwnd, ctypes.byref(buf))
-            if buf.value == pid and user32.IsWindowVisible(hwnd):
-                style = user32.GetWindowLongW(hwnd, GWL_EXSTYLE)
-                user32.SetWindowLongW(hwnd, GWL_EXSTYLE,
-                                      style | WS_EX_TOPMOST | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW)
-                user32.SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0,
-                                    SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE)
-            return True
-
-        WNDENUMPROC = ctypes.WINFUNCTYPE(ctypes.c_bool, wintypes.HWND, wintypes.LPARAM)
-        user32.EnumWindows(WNDENUMPROC(_cb), 0)
-    except Exception:
-        pass
 
 # ---------------------------------------------------------------------------
 # Beep — in-process, instant (no PowerShell startup)
@@ -241,7 +198,7 @@ def beep():
 
 class Daemon:
     def __init__(self):
-        self.procs = []          # live mpv Popen handles
+        self.procs = []          # live mpv Popen handles (objects)
         self.launch_at = None    # epoch time to launch video, or None
         self.last_active = time.time()
         self.mpv_bin = find_mpv()
@@ -280,6 +237,7 @@ class Daemon:
         # terminal; the window stays a normal, visible, clickable window.
 
     def handle_think(self):
+        # called by daemon when think flag is found
         cfg = read_config()
         delay = SEVERITY_DELAYS.get(cfg.get("severity", "medium"))
         if delay is None:          # severity == off
@@ -297,6 +255,7 @@ class Daemon:
         self.launch_at = time.time() + delay
 
     def loop(self):
+        # loop that runs every 30ms. polling flags and acting accordingly
         ensure_state_dir()
         last_alive = 0
         while True:
@@ -310,20 +269,15 @@ class Daemon:
             # react to flags (check kill/beep first for lowest latency)
             if os.path.exists(ALERT_FLAG):
                 remove(ALERT_FLAG)
-                had_video = bool(self.procs)
-                self.launch_at = None
-                self.kill_video()
-                beep()
-                log(f"DAEMON-alert (killed={had_video}, beeped)")
-                self.last_active = now
-
-            if os.path.exists(DONE_FLAG):
-                remove(DONE_FLAG)
-                had_video = bool(self.procs)
-                self.launch_at = None
-                self.kill_video()
-                log(f"DAEMON-done (killed={had_video})")
-                self.last_active = now
+                if read_config().get("severity") == "off":
+                    log("DAEMON-alert ignored (severity=off)")
+                else:
+                    had_video = bool(self.procs)
+                    self.launch_at = None
+                    self.kill_video()
+                    beep()
+                    log(f"DAEMON-alert (killed={had_video}, beeped)")
+                    self.last_active = now
 
             if os.path.exists(THINK_FLAG):
                 remove(THINK_FLAG)
@@ -351,11 +305,6 @@ class Daemon:
                 return
 
             time.sleep(POLL_SEC)
-
-
-def threading_timer(delay, fn):
-    import threading
-    return threading.Timer(delay, fn)
 
 # ---------------------------------------------------------------------------
 # Daemon lifecycle
@@ -388,15 +337,12 @@ def ensure_daemon():
 
 def cmd_start():
     # Non-latency-critical: ensure the daemon is up, then signal a new turn.
-    # Clear any stale kill/beep flags so a leftover never fires a spurious beep
+    # Clear any stale kill/beep flag so a leftover never fires a spurious beep
     # on the next turn (e.g. an alert.flag the daemon missed while it was down).
+    # called on every submitted prompt (UserPromptSubmit hook)
     remove(ALERT_FLAG)
-    remove(DONE_FLAG)
     ensure_daemon()
     touch(THINK_FLAG)
-
-def cmd_done():
-    touch(DONE_FLAG)
 
 def cmd_alert():
     touch(ALERT_FLAG)
@@ -409,6 +355,9 @@ _notify_logged = False
 
 def cmd_notify():
     global _notify_logged
+    if read_config().get("severity") == "off":
+        return
+
     raw = sys.stdin.read()
 
     # Always log the first payload so we can verify the JSON shape.
@@ -450,8 +399,67 @@ def cmd_notify():
     cmd_alert()
 
 def cmd_daemon():
-    # Guard against duplicate daemons racing in.
     Daemon().loop()
+
+def _kill_daemon_and_videos():
+    """Kill any running daemon + mpv windows. Cross-platform."""
+    import signal as _signal
+    if IS_WINDOWS:
+        try:
+            import ctypes
+            PROCESS_TERMINATE = 0x0001
+            k32 = ctypes.windll.kernel32
+            ps = subprocess.run(
+                ["powershell", "-NoProfile", "-NonInteractive", "-Command",
+                 "Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like '*brain_rot.py daemon*' } | Select-Object -ExpandProperty ProcessId"],
+                capture_output=True, text=True)
+            for pid in ps.stdout.split():
+                try:
+                    h = k32.OpenProcess(PROCESS_TERMINATE, False, int(pid))
+                    k32.TerminateProcess(h, 1)
+                    k32.CloseHandle(h)
+                except Exception:
+                    pass
+            subprocess.run(
+                ["powershell", "-NoProfile", "-NonInteractive", "-Command",
+                 "Get-CimInstance Win32_Process -Filter \"name='mpv.exe'\" | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }"],
+                capture_output=True)
+        except Exception:
+            pass
+    else:
+        subprocess.run(["pkill", "-f", "brain_rot.py daemon"], capture_output=True)
+        subprocess.run(["pkill", "mpv"], capture_output=True)
+
+def cmd_restart():
+    _kill_daemon_and_videos()
+    remove(ALIVE_FILE)
+    print("Brain rot restarted — daemon will respawn on your next message.")
+
+def cmd_enable():
+    cfg = read_config()
+    cfg["severity"] = "max"
+    try:
+        with open(CONFIG_PATH, "w", encoding="utf-8") as f:
+            json.dump(cfg, f, indent=2)
+    except Exception as e:
+        print(f"Failed to write config: {e}")
+        return
+    _kill_daemon_and_videos()
+    remove(ALIVE_FILE)
+    print("Brain rot enabled (severity=max) — will start on your next message.")
+
+def cmd_disable():
+    cfg = read_config()
+    cfg["severity"] = "off"
+    try:
+        with open(CONFIG_PATH, "w", encoding="utf-8") as f:
+            json.dump(cfg, f, indent=2)
+    except Exception as e:
+        print(f"Failed to write config: {e}")
+        return
+    _kill_daemon_and_videos()
+    remove(ALIVE_FILE)
+    print("Brain rot disabled.")
 
 # ---------------------------------------------------------------------------
 # Entry point
@@ -461,11 +469,13 @@ def main():
     if len(sys.argv) < 2:
         return
     cmd = sys.argv[1].lower()
-    if   cmd == "start":  cmd_start()
-    elif cmd == "done":   cmd_done()
-    elif cmd == "alert":  cmd_alert()
-    elif cmd == "notify": cmd_notify()
-    elif cmd == "daemon": cmd_daemon()
+    if   cmd == "start":   cmd_start()
+    elif cmd == "alert":   cmd_alert()
+    elif cmd == "notify":  cmd_notify()
+    elif cmd == "daemon":  cmd_daemon()
+    elif cmd == "restart": cmd_restart()
+    elif cmd == "enable":  cmd_enable()
+    elif cmd == "disable": cmd_disable()
 
 if __name__ == "__main__":
     main()

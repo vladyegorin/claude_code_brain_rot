@@ -1,0 +1,1 @@
+!`python brain_rot.py enable`

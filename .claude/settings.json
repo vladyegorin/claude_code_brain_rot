@@ -1,4 +1,9 @@
 {
+  "permissions": {
+    "allow": [
+      "Bash(python brain_rot.py *)"
+    ]
+  },
   "hooks": {
     "UserPromptSubmit": [
       {
