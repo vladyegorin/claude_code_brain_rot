@@ -81,6 +81,7 @@ def read_config():
         "video_width": 320,
         "video_height": 180,
         "corner_padding": 10,
+        "beep": True,
     }
     try:
         with open(CONFIG_PATH, "r", encoding="utf-8") as f:
@@ -269,14 +270,16 @@ class Daemon:
             # react to flags (check kill/beep first for lowest latency)
             if os.path.exists(ALERT_FLAG):
                 remove(ALERT_FLAG)
-                if read_config().get("severity") == "off":
+                cfg = read_config()
+                if cfg.get("severity") == "off":
                     log("DAEMON-alert ignored (severity=off)")
                 else:
                     had_video = bool(self.procs)
                     self.launch_at = None
                     self.kill_video()
-                    beep()
-                    log(f"DAEMON-alert (killed={had_video}, beeped)")
+                    if cfg.get("beep", True):
+                        beep()
+                    log(f"DAEMON-alert (killed={had_video}, beeped={cfg.get('beep', True)})")
                     self.last_active = now
 
             if os.path.exists(THINK_FLAG):
@@ -461,6 +464,42 @@ def cmd_disable():
     remove(ALIVE_FILE)
     print("Brain rot disabled.")
 
+def cmd_severity(level):
+    levels = list(SEVERITY_DELAYS.keys())  # off, low, medium, high, max
+    if level not in levels:
+        print(f"Unknown severity '{level}'. Choose from: {', '.join(levels)}")
+        return
+    cfg = read_config()
+    cfg["severity"] = level
+    try:
+        with open(CONFIG_PATH, "w", encoding="utf-8") as f:
+            json.dump(cfg, f, indent=2)
+    except Exception as e:
+        print(f"Failed to write config: {e}")
+        return
+    if level == "off":
+        _kill_daemon_and_videos()
+        remove(ALIVE_FILE)
+        print("Brain rot disabled.")
+    else:
+        _kill_daemon_and_videos()
+        remove(ALIVE_FILE)
+        print(f"Severity set to '{level}' — will start on your next message.")
+
+def cmd_beep(state):
+    if state not in ("on", "off"):
+        print(f"Usage: brain_rot.py beep on|off")
+        return
+    cfg = read_config()
+    cfg["beep"] = (state == "on")
+    try:
+        with open(CONFIG_PATH, "w", encoding="utf-8") as f:
+            json.dump(cfg, f, indent=2)
+    except Exception as e:
+        print(f"Failed to write config: {e}")
+        return
+    print(f"Beep {'enabled' if state == 'on' else 'disabled'}.")
+
 # ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
@@ -474,8 +513,10 @@ def main():
     elif cmd == "notify":  cmd_notify()
     elif cmd == "daemon":  cmd_daemon()
     elif cmd == "restart": cmd_restart()
-    elif cmd == "enable":  cmd_enable()
-    elif cmd == "disable": cmd_disable()
+    elif cmd == "enable":   cmd_enable()
+    elif cmd == "disable":  cmd_disable()
+    elif cmd == "severity": cmd_severity(sys.argv[2].lower() if len(sys.argv) > 2 else "")
+    elif cmd == "beep":     cmd_beep(sys.argv[2].lower() if len(sys.argv) > 2 else "")
 
 if __name__ == "__main__":
     main()

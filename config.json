@@ -4,5 +4,6 @@
   "video_width": 320,
   "video_height": 180,
   "corner_padding": 10,
+  "beep": false,
   "urls": []
 }
