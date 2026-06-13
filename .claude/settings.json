@@ -1,4 +1,4 @@
-{
+﻿{
   "permissions": {
     "allow": [
       "Bash(python brain_rot.py *)"
@@ -15,7 +15,7 @@
     "PostToolUse": [
       {
         "hooks": [
-          { "type": "command", "command": "scripts\\think.bat" }
+          { "type": "command", "command": "python scripts/think.py" }
         ]
       }
     ],
@@ -29,7 +29,7 @@
     "Stop": [
       {
         "hooks": [
-          { "type": "command", "command": "scripts\\notify.bat" }
+          { "type": "command", "command": "python scripts/notify.py" }
         ]
       }
     ]
