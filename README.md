@@ -19,7 +19,7 @@ No background service, no startup entry. The daemon spawns on your first message
 ## Requirements
 
 - Python 3.8+
-- [mpv](https://mpv.io/) — the video player
+- [mpv](https://mpv.io/) - the video player
 
 ---
 
@@ -28,7 +28,7 @@ No background service, no startup entry. The daemon spawns on your first message
 ### Windows
 
 ```powershell
-git clone https://github.com/you/claude-code-brain-rot
+git clone https://github.com/vladyegorin/claude-code-brain-rot
 cd claude-code-brain-rot
 .\install.ps1
 ```
@@ -41,7 +41,7 @@ winget install mpv
 ### macOS
 
 ```bash
-git clone https://github.com/you/claude-code-brain-rot
+git clone https://github.com/vladyegorin/claude-code-brain-rot
 cd claude-code-brain-rot
 ./install.sh
 ```
@@ -54,7 +54,7 @@ brew install mpv
 ### Linux
 
 ```bash
-git clone https://github.com/you/claude-code-brain-rot
+git clone https://github.com/vladyegorin/claude-code-brain-rot
 cd claude-code-brain-rot
 ./install.sh
 ```
