@@ -2,9 +2,6 @@
 set -e
 
 REPO_ROOT="$(cd "$(dirname "$0")" && pwd)"
-BRAIN_ROT_PY="$REPO_ROOT/brain_rot.py"
-THINK_SH="$REPO_ROOT/scripts/think.sh"
-NOTIFY_SH="$REPO_ROOT/scripts/notify.sh"
 SETTINGS_DIR="$REPO_ROOT/.claude"
 SETTINGS_FILE="$SETTINGS_DIR/settings.json"
 
@@ -52,7 +49,7 @@ else
 fi
 
 # ── Make scripts executable ───────────────────────────────────────────────────
-chmod +x "$THINK_SH" "$NOTIFY_SH"
+chmod +x "$REPO_ROOT/scripts/think.sh" "$REPO_ROOT/scripts/notify.sh"
 
 # ── Write settings.json ───────────────────────────────────────────────────────
 printf "Writing .claude/settings.json... "
@@ -69,28 +66,28 @@ cat > "$SETTINGS_FILE" <<EOF
     "UserPromptSubmit": [
       {
         "hooks": [
-          { "type": "command", "command": "$PY_CMD \"$BRAIN_ROT_PY\" start" }
+          { "type": "command", "command": "$PY_CMD brain_rot.py start" }
         ]
       }
     ],
     "PostToolUse": [
       {
         "hooks": [
-          { "type": "command", "command": "\"$THINK_SH\"" }
+          { "type": "command", "command": "scripts/think.sh" }
         ]
       }
     ],
     "Notification": [
       {
         "hooks": [
-          { "type": "command", "command": "$PY_CMD \"$BRAIN_ROT_PY\" notify" }
+          { "type": "command", "command": "$PY_CMD brain_rot.py notify" }
         ]
       }
     ],
     "Stop": [
       {
         "hooks": [
-          { "type": "command", "command": "\"$NOTIFY_SH\"" }
+          { "type": "command", "command": "scripts/notify.sh" }
         ]
       }
     ]

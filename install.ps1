@@ -3,14 +3,11 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
 $repoRoot = $PSScriptRoot
-$brainRotPy  = Join-Path $repoRoot "brain_rot.py"
-$thinkBat    = Join-Path $repoRoot "scripts\think.bat"
-$notifyBat   = Join-Path $repoRoot "scripts\notify.bat"
 $settingsDir = Join-Path $repoRoot ".claude"
 $settingsFile = Join-Path $settingsDir "settings.json"
 
 Write-Host ""
-Write-Host "Claude Code Brain Rot — Windows Installer" -ForegroundColor Cyan
+Write-Host "Claude Code Brain Rot - Windows Installer" -ForegroundColor Cyan
 Write-Host ""
 
 # ── Python check ─────────────────────────────────────────────────────────────
@@ -54,20 +51,13 @@ if ($mpvFound) {
     Write-Host " NOT FOUND" -ForegroundColor Yellow
     Write-Host "  Videos won't play until mpv is installed."
     Write-Host "  Install: winget install mpv"
-    Write-Host "  Then re-run this installer (or just start using Claude Code — it will warn)."
+    Write-Host "  Then re-run this installer (or just start using Claude Code - it will warn)."
 }
 
 # ── Write settings.json ───────────────────────────────────────────────────────
 Write-Host "Writing .claude/settings.json..." -NoNewline
 
-# Escape backslashes for JSON string values
-function EscapeJson($path) { $path.Replace("\", "\\").Replace('"', '\"') }
-
-$pyPath    = EscapeJson $brainRotPy
-$thinkPath = EscapeJson $thinkBat
-$notifyPath = EscapeJson $notifyBat
-
-$settingsJson = @"
+$settingsJson = @'
 {
   "permissions": {
     "allow": [
@@ -78,34 +68,34 @@ $settingsJson = @"
     "UserPromptSubmit": [
       {
         "hooks": [
-          { "type": "command", "command": "python \"$pyPath\" start" }
+          { "type": "command", "command": "python brain_rot.py start" }
         ]
       }
     ],
     "PostToolUse": [
       {
         "hooks": [
-          { "type": "command", "command": "\"$thinkPath\"" }
+          { "type": "command", "command": "scripts\\think.bat" }
         ]
       }
     ],
     "Notification": [
       {
         "hooks": [
-          { "type": "command", "command": "python \"$pyPath\" notify" }
+          { "type": "command", "command": "python brain_rot.py notify" }
         ]
       }
     ],
     "Stop": [
       {
         "hooks": [
-          { "type": "command", "command": "\"$notifyPath\"" }
+          { "type": "command", "command": "scripts\\notify.bat" }
         ]
       }
     ]
   }
 }
-"@
+'@
 
 New-Item -ItemType Directory -Force $settingsDir | Out-Null
 Set-Content -Path $settingsFile -Value $settingsJson -Encoding UTF8

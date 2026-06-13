@@ -8,28 +8,28 @@
     "UserPromptSubmit": [
       {
         "hooks": [
-          { "type": "command", "command": "python \"E:\\Desktop\\pet_projects\\claude_code_brain_rot\\brain_rot.py\" start" }
+          { "type": "command", "command": "python brain_rot.py start" }
         ]
       }
     ],
     "PostToolUse": [
       {
         "hooks": [
-          { "type": "command", "command": "\"E:\\Desktop\\pet_projects\\claude_code_brain_rot\\scripts\\think.bat\"" }
+          { "type": "command", "command": "scripts\\think.bat" }
         ]
       }
     ],
     "Notification": [
       {
         "hooks": [
-          { "type": "command", "command": "python \"E:\\Desktop\\pet_projects\\claude_code_brain_rot\\brain_rot.py\" notify" }
+          { "type": "command", "command": "python brain_rot.py notify" }
         ]
       }
     ],
     "Stop": [
       {
         "hooks": [
-          { "type": "command", "command": "\"E:\\Desktop\\pet_projects\\claude_code_brain_rot\\scripts\\notify.bat\"" }
+          { "type": "command", "command": "scripts\\notify.bat" }
         ]
       }
     ]
