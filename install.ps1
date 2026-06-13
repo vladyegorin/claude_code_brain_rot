@@ -61,7 +61,8 @@ $settingsJson = @'
 {
   "permissions": {
     "allow": [
-      "Bash(python brain_rot.py *)"
+      "Bash(python brain_rot.py *)",
+      "Bash(python3 brain_rot.py *)"
     ]
   },
   "hooks": {
@@ -75,7 +76,7 @@ $settingsJson = @'
     "PostToolUse": [
       {
         "hooks": [
-          { "type": "command", "command": "scripts\\think.bat" }
+          { "type": "command", "command": "python scripts/think.py" }
         ]
       }
     ],
@@ -89,7 +90,7 @@ $settingsJson = @'
     "Stop": [
       {
         "hooks": [
-          { "type": "command", "command": "scripts\\notify.bat" }
+          { "type": "command", "command": "python scripts/notify.py" }
         ]
       }
     ]

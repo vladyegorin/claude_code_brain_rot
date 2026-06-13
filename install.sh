@@ -48,9 +48,6 @@ else
     echo "  Then re-run this installer (or just start using Claude Code — it will warn)."
 fi
 
-# ── Make scripts executable ───────────────────────────────────────────────────
-chmod +x "$REPO_ROOT/scripts/think.sh" "$REPO_ROOT/scripts/notify.sh"
-
 # ── Write settings.json ───────────────────────────────────────────────────────
 printf "Writing .claude/settings.json... "
 mkdir -p "$SETTINGS_DIR"
@@ -59,7 +56,8 @@ cat > "$SETTINGS_FILE" <<EOF
 {
   "permissions": {
     "allow": [
-      "Bash(python brain_rot.py *)"
+      "Bash(python brain_rot.py *)",
+      "Bash(python3 brain_rot.py *)"
     ]
   },
   "hooks": {
@@ -73,7 +71,7 @@ cat > "$SETTINGS_FILE" <<EOF
     "PostToolUse": [
       {
         "hooks": [
-          { "type": "command", "command": "scripts/think.sh" }
+          { "type": "command", "command": "$PY_CMD scripts/think.py" }
         ]
       }
     ],
@@ -87,7 +85,7 @@ cat > "$SETTINGS_FILE" <<EOF
     "Stop": [
       {
         "hooks": [
-          { "type": "command", "command": "scripts/notify.sh" }
+          { "type": "command", "command": "$PY_CMD scripts/notify.py" }
         ]
       }
     ]

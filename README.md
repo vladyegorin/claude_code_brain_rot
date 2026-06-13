@@ -43,7 +43,7 @@ winget install mpv
 ```bash
 git clone https://github.com/vladyegorin/claude-code-brain-rot
 cd claude-code-brain-rot
-./install.sh
+bash install.sh
 ```
 
 If you don't have mpv:
@@ -56,7 +56,7 @@ brew install mpv
 ```bash
 git clone https://github.com/vladyegorin/claude-code-brain-rot
 cd claude-code-brain-rot
-./install.sh
+bash install.sh
 ```
 
 If you don't have mpv:
@@ -64,7 +64,7 @@ If you don't have mpv:
 sudo apt install mpv
 ```
 
-The installer checks your Python version, writes `.claude/settings.json` with the correct paths for your machine, and creates the `~/.brainrot/` state directory.
+The installer checks your Python version, writes `.claude/settings.json`, and creates the `~/.brainrot/` state directory.
 
 ---
 
@@ -128,8 +128,7 @@ Kills the daemon and any playing videos. Useful after editing `brain_rot.py` —
   "video_width": 320,
   "video_height": 180,
   "corner_padding": 10,
-  "beep": true,
-  "urls": []
+  "beep": true
 }
 ```
 
@@ -141,14 +140,6 @@ Kills the daemon and any playing videos. Useful after editing `brain_rot.py` —
 | `video_height` | `180` | Height of each video window in pixels |
 | `corner_padding` | `10` | Gap from screen edge in pixels |
 | `beep` | `true` | Whether to beep when Claude finishes |
-
----
-
-## Custom URLs (WIP)
-
-> This feature is not yet implemented. The groundwork is in place — the `urls` key in `config.json` is reserved for it.
-
-The plan is to let you add YouTube/TikTok/etc. URLs as an alternative to local files. mpv supports URL playback natively and can pull streams via [yt-dlp](https://github.com/yt-dlp/yt-dlp).
 
 ---
 
